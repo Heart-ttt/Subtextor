@@ -1,0 +1,33 @@
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# 运行产物（HC-1：合成数据不入库；模型与缓存本地生成）
+data/
+models/
+.cache/
+
+# conda/venv
+.env
+.venv/
+env/
+condaenv.*.requirements.txt
+
+# 本地运行时：llama.cpp 二进制按需下载，不入库
+.llama/
+
+# macOS
+.DS_Store
+
+# Claude Code：团队共享的 settings.json 入库；个人/本地设置不入库
+.claude/settings.local.json
+.claude/worktrees/
+
+# 个人资料
+Personal/
+ARCHITECTURE.md

@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subtextor · 图文语境审核台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:#FAFBF5; --panel-2:#EFF1E8; --line:#E0E2D7; --line-soft:#E9EBE0;
+  --text:#1E2420; --muted:#646B5F; --faint:#A2A89A;
+  --allow:#059669; --block:#DC2626; --review:#D97706; --signal:#0EA5E9;
+  --accent:#0E9C8E;
+  --grad:linear-gradient(120deg,#0EA59B,#10B981);
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --grotesk:'Space Grotesk',system-ui,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:#F3F4EE;
+  color:var(--text); font-family:var(--grotesk);
+  -webkit-font-smoothing:antialiased; line-height:1.5; min-height:100vh;
+}
+.wrap{max-width:1180px; margin:0 auto; padding:0 24px}
+
+
+.hero{padding:34px 0 16px}
+.hero-top{display:flex; align-items:center; gap:16px}
+.wordmark{font-family:var(--grotesk); font-weight:600; font-size:17px; letter-spacing:.03em; color:var(--text)}
+.wordmark b{color:var(--accent); font-weight:600}
+.status{margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted);
+  display:flex; align-items:center; gap:7px}
+.status .led{width:8px; height:8px; border-radius:50%; background:var(--faint); box-shadow:0 0 0 0 transparent}
+.status.on .led{background:var(--allow); box-shadow:0 0 10px 1px #43c59e88}
+.tabs{display:flex; gap:2px; border-bottom:1px solid var(--line); margin-top:6px}
+.tab{font-family:var(--mono); font-size:13px; color:var(--muted); background:none; border:0;
+  padding:11px 16px; cursor:pointer; border-bottom:2px solid transparent; letter-spacing:.03em; position:relative}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--text)}
+.tab.active::after{content:""; position:absolute; left:14px; right:14px; bottom:-1px; height:2px;
+  background:var(--grad); border-radius:2px}
+
+main{padding:16px 0 28px}
+.view{display:none} .view.active{display:block}
+
+/* ── console grid ── */
+.console{display:grid; grid-template-columns:minmax(330px,1fr) 1.25fr; gap:20px}
+.card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px;
+  box-shadow:0 1px 2px rgba(18,40,55,.04), 0 18px 40px -28px rgba(18,60,80,.22)}
+.eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.18em; color:var(--muted);
+  text-transform:uppercase; margin:0 0 14px}
+
+/* compose */
+.drop{border:1.5px dashed var(--line); border-radius:11px; aspect-ratio:16/10;
+  display:flex; align-items:center; justify-content:center; text-align:center; cursor:pointer;
+  color:var(--muted); font-family:var(--mono); font-size:12.5px; overflow:hidden; position:relative;
+  transition:border-color .15s, background .15s; background:var(--panel-2)}
+.drop:hover,.drop.drag{border-color:var(--signal); background:#EDEFE5; color:var(--text)}
+.drop img{width:100%; height:100%; object-fit:contain; background:#F4F5EF}
+.drop .hint{padding:18px}
+label.fld{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); margin:18px 0 7px}
+textarea,select{width:100%; background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+  border-radius:9px; padding:11px 12px; font-family:var(--grotesk); font-size:14.5px; resize:vertical}
+textarea{min-height:78px}
+textarea:focus,select:focus,.drop:focus-visible,button:focus-visible{outline:2px solid var(--signal); outline-offset:2px}
+.row{display:flex; gap:10px; align-items:end; margin-top:4px}
+.row .grow{flex:1}
+.btn{font-family:var(--grotesk); font-weight:500; font-size:14.5px; border-radius:9px;
+  padding:11px 18px; cursor:pointer; border:1px solid var(--line); background:var(--panel-2); color:var(--text)}
+.btn:hover{border-color:var(--muted)}
+.btn-primary{background:var(--grad); border-color:transparent; color:#fff; font-weight:700;
+  box-shadow:0 6px 16px -8px rgba(8,150,180,.55)}
+.btn-primary:hover{filter:brightness(1.05)}
+.btn[disabled]{opacity:.4; cursor:not-allowed}
+.examples{margin-top:16px}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{font-family:var(--mono); font-size:11.5px; color:var(--muted); background:var(--panel-2);
+  border:1px solid var(--line); border-radius:999px; padding:6px 12px; cursor:pointer}
+.chip:hover{color:var(--text); border-color:var(--signal)}
+
+/* verdict */
+.verdict{position:relative; --vc:var(--muted)}
+.verdict.is-放行{--vc:var(--allow)} .verdict.is-拦截{--vc:var(--block)}
+.verdict.is-待人工{--vc:var(--review)}
+.vhead{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.vword{font-family:var(--grotesk); font-weight:700; font-size:40px; line-height:1; color:var(--vc);
+  letter-spacing:.01em; display:flex; align-items:center; gap:12px}
+.vword .gl{font-size:30px}
+.vbadge{font-family:var(--mono); font-size:12px; border:1px solid var(--vc); color:var(--vc);
+  border-radius:999px; padding:4px 11px; letter-spacing:.04em}
+.vmeta{margin-left:auto; font-family:var(--mono); font-size:12px; color:var(--muted); text-align:right}
+.vmeta b{color:var(--text); font-weight:600}
+.score{height:4px; background:var(--line-soft); border-radius:3px; margin:16px 0 4px; overflow:hidden}
+.score>i{display:block; height:100%; width:0; background:var(--vc); transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.reason{font-family:var(--serif); font-style:italic; font-size:18px; line-height:1.6; color:#22323B;
+  border-left:2px solid var(--vc); padding:4px 0 4px 16px; margin:18px 0 6px}
+.reason .q{color:var(--vc); font-style:normal; font-family:var(--grotesk)}
+.placeholder{color:var(--muted); font-family:var(--mono); font-size:13px; line-height:1.7}
+
+/* cascade trace — signature */
+.trace{margin-top:22px; padding-top:18px; border-top:1px solid var(--line)}
+.tnode{display:flex; gap:14px; align-items:flex-start; padding:8px 0; position:relative}
+.tnode:not(:last-child)::before{content:""; position:absolute; left:6px; top:22px; bottom:-8px;
+  width:1px; background:var(--line)}
+.tnode .pip{width:13px; height:13px; border-radius:50%; border:1.5px solid #CBD8DF;
+  margin-top:3px; flex:none; background:#fff; transition:.25s}
+.tnode .tlabel{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--muted);
+  text-transform:uppercase; min-width:46px}
+.tnode .tnote{font-size:13.5px; color:var(--muted)}
+.tnode.done .tnote{color:#3D4F59}
+.tnode.decided .pip{border-color:var(--vc); background:var(--vc); box-shadow:0 0 12px 1px var(--vc)}
+.tnode.decided .tlabel{color:var(--vc)}
+.tnode.decided .tnote{color:var(--text); font-weight:500}
+/* 逐级揭示：录屏时把"哈希匹配→初筛→VLM→分流"的级联故事讲清楚（AC-12） */
+@keyframes traceIn{from{opacity:0; transform:translateX(-7px)} to{opacity:1; transform:none}}
+.tnode{animation:traceIn .34s both cubic-bezier(.2,.7,.2,1)}
+.tnode.decided .pip{animation:pipPop .4s both}
+@keyframes pipPop{0%{transform:scale(.4)} 60%{transform:scale(1.25)} 100%{transform:scale(1)}}
+
+.review-bar{display:flex; gap:10px; margin-top:20px; padding-top:18px; border-top:1px solid var(--line)}
+.btn-allow{border-color:#a7e0cd; color:var(--allow)} .btn-allow:hover{background:#eafaf3}
+.btn-block{border-color:#f3c0c0; color:var(--block)} .btn-block:hover{background:#fdeeee}
+.note{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-left:auto; align-self:center}
+
+/* tables (stats) */
+.controls{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:18px}
+.controls .seg{font-family:var(--mono); font-size:12px; color:var(--muted); display:flex; align-items:center; gap:8px}
+table{width:100%; border-collapse:collapse; margin:8px 0 22px; font-size:14px}
+th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line-soft)}
+th{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted)}
+td.num,th.num{font-family:var(--mono); text-align:right}
+tr.hl td{color:var(--text); font-weight:600}
+.kicker{font-family:var(--mono); font-size:12px; letter-spacing:.06em; margin:24px 0 6px;
+  display:inline-block; background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+.muted{color:var(--muted)} .small{font-size:12.5px}
+
+/* 模型选择 */
+.mhead{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:16px}
+.mutil{display:flex; align-items:center; gap:8px}
+.mstatus{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-right:4px}
+.btn-sm{padding:7px 12px; font-size:12.5px; font-weight:400}
+.mlist{display:flex; flex-direction:column; gap:9px}
+.mcard{display:flex; align-items:center; gap:14px; padding:13px 16px; background:var(--panel-2);
+  border:1px solid var(--line); border-radius:12px}
+.mcard-main{flex:1; min-width:0}
+.mname{font-family:var(--grotesk); font-weight:600; font-size:15px; color:var(--text);
+  display:flex; align-items:center; gap:9px; flex-wrap:wrap}
+.mnote{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:4px}
+.mtag{font-family:var(--mono); font-size:10.5px; padding:2px 9px; border-radius:999px; border:1px solid var(--line); font-weight:400}
+.mtag.ok{color:var(--allow); border-color:#a7e0cd}
+.mtag.no{color:var(--faint)}
+.mcard .btn{flex:none}
+
+/* ── 模型架构：推理通路 schematic ── */
+.card.arch{padding:16px 18px}
+.arch-head{display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:6px}
+/* 级与级之间的下传条件（漏斗：只往下传残留）*/
+.handoff{margin:-2px 0 7px; padding-left:7px}
+.handoff span{display:inline-block; font-family:var(--mono); font-size:11px; color:var(--muted);
+  background:var(--panel); border:1px dashed var(--line); border-radius:999px; padding:3px 12px}
+.handoff b{color:var(--accent); font-weight:600}
+
+.flow{position:relative; padding:4px 0 2px}
+.flow::before{content:""; position:absolute; left:19px; top:20px; bottom:20px; width:2px; background:var(--line)}
+.fstage{position:relative; padding-left:56px; margin:0 0 9px}
+.fstage:last-child{margin:0}
+.idx{position:absolute; left:0; top:6px; width:42px; height:42px; border-radius:12px; z-index:1;
+  background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-size:22px; color:var(--accent)}
+.fstage.io .idx{border-style:dashed; color:var(--muted); font-family:var(--mono);
+  font-size:12px; letter-spacing:.04em; font-weight:500}
+
+.fbody{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 14px;
+  box-shadow:0 1px 2px rgba(18,40,55,.03); transition:opacity .2s, filter .2s}
+.fbody>header{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.fbody h3{margin:0; font-family:var(--grotesk); font-weight:600; font-size:15.5px; color:var(--text)}
+.fbody h3 .en{font-family:var(--mono); font-size:10px; letter-spacing:.13em; color:var(--faint);
+  text-transform:uppercase; margin-left:7px; font-weight:500}
+.frole{margin:6px 0 0; font-size:12.5px; color:var(--muted); line-height:1.5; max-width:78ch}
+.tag{font-family:var(--mono); font-size:10.5px; padding:3px 10px; border-radius:999px;
+  border:1px solid var(--line); color:var(--muted); white-space:nowrap}
+.tag.soft{color:var(--accent); border-color:#aee0d8}
+
+/* 初筛内部：左→右 图像侧/文本侧 两路 */
+.pf{display:flex; align-items:stretch; gap:10px; margin-top:4px; overflow-x:auto; padding-bottom:2px}
+.pf-io{flex:none; align-self:stretch; min-width:56px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; border:1px dashed var(--line); border-radius:10px;
+  padding:8px 6px; font-family:var(--mono); font-size:13px; color:var(--muted); text-align:center; line-height:1.3}
+.pf-io small{font-family:var(--grotesk); font-size:11px; color:var(--muted); margin-top:4px}
+.pf-lanes{flex:1; display:flex; flex-direction:column; min-width:0}
+.lane{display:flex; align-items:stretch; gap:8px}
+.lane:first-child{padding-bottom:11px; margin-bottom:11px; border-bottom:1px dashed var(--line)}
+.lane-tag{flex:none; align-self:center; width:48px; font-size:12px; font-weight:600;
+  color:var(--accent); text-align:right; line-height:1.2}
+.node{flex:1 1 0; min-width:152px; border:1px solid var(--line); border-radius:9px; padding:9px 12px;
+  background:transparent; transition:opacity .2s, filter .2s, border-color .2s}
+.node>b{font-size:14px; font-weight:600; color:var(--text)}
+.node small{display:block; margin-top:3px; font-size:11.5px; color:var(--muted); line-height:1.45}
+.node.off{opacity:.4; filter:grayscale(1); border-style:dashed}
+.arrow{flex:none; align-self:center; color:var(--muted); font-size:16px; line-height:1}
+.pf-split{flex:none; align-self:stretch; display:flex; flex-direction:column; justify-content:space-around;
+  color:var(--muted); font-size:16px; line-height:1}
+
+/* 判定门：所有证据汇到这里，按优先级出唯一结果 */
+.gate{flex:none; align-self:stretch; min-width:248px; max-width:312px; display:flex; flex-direction:column; justify-content:center;
+  border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:10px; padding:10px 14px}
+.gate-h{font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--muted); margin-bottom:6px}
+.gate-row{display:flex; align-items:flex-start; gap:9px; padding:7px 0; font-size:12.5px; line-height:1.5; color:var(--text)}
+.gate-row+.gate-row{border-top:1px dashed var(--line)}
+.gn{flex:none; width:19px; height:19px; border-radius:50%; border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:11px; color:var(--muted)}
+.gate-row .o{display:block; margin-top:2px; font-weight:600}
+.o.block{color:var(--block)} .o.vlm{color:var(--signal)} .o.plain{color:var(--allow)}
+
+/* 切到 VLM-only 时把整级灰掉（消融可视化）*/
+.fstage.ablated .fbody{opacity:.42; filter:grayscale(.85)}
+.fstage.ablated .idx{opacity:.5}
+
+/* 消融开关 */
+.sw{display:inline-flex; align-items:center; gap:8px; margin-left:auto; cursor:pointer; user-select:none;
+  font-family:var(--mono); font-size:11px; color:var(--muted); position:relative}
+.sw input{position:absolute; opacity:0; width:0; height:0}
+.sw .track{width:34px; height:19px; border-radius:999px; background:var(--line); position:relative; transition:.2s; flex:none}
+.sw .track::after{content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%;
+  background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:.2s}
+.sw input:checked+.track{background:var(--accent)}
+.sw input:checked+.track::after{transform:translateX(15px)}
+.sw input:focus-visible+.track{outline:2px solid var(--signal); outline-offset:2px}
+.sw .sw-state{font-weight:600} .sw .on-txt{color:var(--accent)}
+
+/* 输出三档 */
+.verdicts{display:flex; gap:10px; flex-wrap:wrap; margin-top:9px}
+.vchip{font-family:var(--grotesk); font-weight:600; font-size:14px; padding:7px 14px; border-radius:10px;
+  border:1px solid; display:inline-flex; align-items:center; gap:8px}
+.vchip .g{font-size:15px}
+.vchip.allow{color:var(--allow); border-color:#a7e0cd; background:#eafaf3}
+.vchip.block{color:var(--block); border-color:#f3c0c0; background:#fdeeee}
+.vchip.review{color:var(--review); border-color:#f0d9ad; background:#fdf4e6}
+
+.toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--panel); border:1px solid var(--line); color:var(--text); font-family:var(--mono);
+  font-size:13px; padding:11px 18px; border-radius:10px; opacity:0; transition:.25s; pointer-events:none; z-index:50;
+  box-shadow:0 12px 30px -10px rgba(18,60,80,.3)}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+/* ── 主页 / home ── */
+.home{padding:10px 0 6px}
+.home-hero{max-width:800px; margin:22px 0 32px}
+.home-kicker{font-family:var(--mono); font-size:11.5px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 16px}
+.home-title{font-family:var(--serif); font-weight:600; font-style:italic;
+  font-size:clamp(33px,5vw,54px); line-height:1.1; color:var(--text); margin:0}
+.home-title em{font-style:italic; background:var(--grad); -webkit-background-clip:text;
+  background-clip:text; -webkit-text-fill-color:transparent}
+.home-lede{font-family:var(--grotesk); font-size:16px; line-height:1.75; color:var(--muted);
+  max-width:60ch; margin:22px 0 0}
+.home-lede b{color:var(--text); font-weight:600}
+.home-cta{display:flex; gap:12px; margin-top:28px; flex-wrap:wrap}
+
+/* signature：同一张图 → 两句话 → 相反判定（AC-2，项目立意）*/
+.xcard{background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:24px;
+  box-shadow:0 1px 2px rgba(18,40,55,.04), 0 18px 40px -28px rgba(18,60,80,.22)}
+.xcard-h{font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--muted); margin:0}
+.xcard-sub{font-family:var(--serif); font-style:italic; font-size:19px; color:#22323B; margin:9px 0 0}
+.xfork{display:flex; align-items:center; gap:28px; margin-top:24px; flex-wrap:wrap}
+.xqr{flex:none; display:flex; flex-direction:column; align-items:center; gap:10px}
+.xqr svg{width:84px; height:84px; display:block; border:1px solid var(--line); border-radius:12px;
+  padding:11px; background:#fff}
+.xqr .cap{font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--muted)}
+.xbranches{flex:1 1 380px; min-width:280px; display:flex; flex-direction:column; gap:14px;
+  border-left:2px dashed var(--line); padding-left:24px}
+.xbranch{display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+.xcap{flex:1 1 210px; font-family:var(--grotesk); font-size:14.5px; color:var(--text); line-height:1.45;
+  background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:11px 14px}
+.xcap b{display:block; margin-bottom:4px; font-family:var(--mono); font-size:10.5px; font-weight:500;
+  letter-spacing:.08em; color:var(--muted)}
+.xto{flex:none; color:var(--faint); font-size:17px}
+.xnote{font-size:13px; line-height:1.75; color:var(--muted); margin:22px 0 0; padding-top:18px;
+  border-top:1px solid var(--line); max-width:78ch}
+.xnote b{color:var(--text); font-weight:600}
+
+/* 级联四步 teaser → 模型架构 */
+.steps{display:flex; gap:10px; margin-top:22px; flex-wrap:wrap}
+.step{flex:1 1 150px; min-width:138px; background:var(--panel); border:1px solid var(--line);
+  border-radius:13px; padding:15px 16px}
+.step .sn{font-family:var(--serif); font-size:20px; color:var(--accent); line-height:1}
+.step b{display:block; font-family:var(--grotesk); font-weight:600; font-size:14.5px; color:var(--text); margin:7px 0 4px}
+.step small{font-size:12px; color:var(--muted); line-height:1.45}
+.step-link{display:inline-flex; align-items:center; gap:6px; margin-top:18px;
+  font-family:var(--mono); font-size:12px; color:var(--accent); cursor:pointer; background:none; border:0; padding:0}
+.step-link:hover{text-decoration:underline}
+
+/* home 入场：呼应级联"逐级揭示" */
+@keyframes homeIn{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
+#home.active .home-hero{animation:homeIn .5s both cubic-bezier(.2,.7,.2,1)}
+#home.active .xcard{animation:homeIn .5s .12s both cubic-bezier(.2,.7,.2,1)}
+#home.active .steps{animation:homeIn .5s .2s both cubic-bezier(.2,.7,.2,1)}
+
+@media (max-width:840px){ .console{grid-template-columns:1fr} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important; animation:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="hero-top">
+      <div class="wordmark">Subtext<b>or</b></div>
+      <div class="status" id="status"><span class="led"></span><span id="statusTxt">连接中…</span></div>
+    </div>
+  </header>
+  <nav class="tabs">
+    <button class="tab active" data-view="home">主页</button>
+    <button class="tab" data-view="review">单图测试</button>
+    <!-- <button class="tab" data-view="stats">性能测试</button> -->
+    <button class="tab" data-view="arch">模型架构</button>
+    <button class="tab" data-view="models">模型选择</button>
+  </nav>
+
+  <main>
+    <!-- ── 主页 ── -->
+    <section class="view active" id="home">
+      <div class="home">
+        <div class="home-hero">
+          <p class="home-kicker">图文语境违规检测 · 级联流水线</p>
+          <h1 class="home-title">读出图文之间的<em>潜台词</em></h1>
+          <p class="home-lede">一张图可能正常，一句话可能只是擦边——但<b>图 + 文 + 语境</b>合在一起，可能正是违规。这是纯视觉模型、关键词库、甚至纯文本大模型共同的盲区。Subtextor 用一条级联流水线，把昂贵的多模态判断只用在刀刃上。</p>
+          <div class="home-cta">
+            <button class="btn btn-primary" data-goto="review">开始检测 →</button>
+            <button class="btn" data-goto="arch">看级联架构</button>
+          </div>
+        </div>
+
+        <!-- signature：同一张图，配文不同，判定相反 -->
+        <div class="xcard">
+          <p class="xcard-h">核心立意 · 同图异文</p>
+          <p class="xcard-sub">同一张二维码，只换一句配文，判定就该相反。</p>
+          <div class="xfork">
+            <div class="xqr">
+              <svg viewBox="0 0 100 100" aria-label="二维码示意" role="img">
+                <g fill="#1E2420">
+                  <!-- 三个定位角 -->
+                  <rect x="0" y="0" width="26" height="26" rx="3"/><rect x="74" y="0" width="26" height="26" rx="3"/><rect x="0" y="74" width="26" height="26" rx="3"/>
+                </g>
+                <g fill="#FFFFFF">
+                  <rect x="5" y="5" width="16" height="16" rx="2"/><rect x="79" y="5" width="16" height="16" rx="2"/><rect x="5" y="79" width="16" height="16" rx="2"/>
+                </g>
+                <g fill="#1E2420">
+                  <rect x="9" y="9" width="8" height="8" rx="1"/><rect x="83" y="9" width="8" height="8" rx="1"/><rect x="9" y="83" width="8" height="8" rx="1"/>
+                  <!-- 数据模块（示意，非真实可扫）-->
+                  <rect x="40" y="6" width="6" height="6" rx="1"/><rect x="52" y="12" width="6" height="6" rx="1"/><rect x="40" y="24" width="6" height="6" rx="1"/><rect x="58" y="24" width="6" height="6" rx="1"/>
+                  <rect x="34" y="40" width="6" height="6" rx="1"/><rect x="46" y="40" width="6" height="6" rx="1"/><rect x="58" y="46" width="6" height="6" rx="1"/><rect x="70" y="40" width="6" height="6" rx="1"/>
+                  <rect x="6" y="40" width="6" height="6" rx="1"/><rect x="18" y="52" width="6" height="6" rx="1"/><rect x="40" y="58" width="6" height="6" rx="1"/><rect x="52" y="64" width="6" height="6" rx="1"/>
+                  <rect x="40" y="76" width="6" height="6" rx="1"/><rect x="52" y="88" width="6" height="6" rx="1"/><rect x="64" y="82" width="6" height="6" rx="1"/><rect x="76" y="70" width="6" height="6" rx="1"/>
+                  <rect x="88" y="46" width="6" height="6" rx="1"/><rect x="88" y="64" width="6" height="6" rx="1"/><rect x="64" y="58" width="6" height="6" rx="1"/>
+                </g>
+              </svg>
+              <span class="cap">同一张图</span>
+            </div>
+            <div class="xbranches">
+              <div class="xbranch">
+                <span class="xcap"><b>配文 A</b>扫码进群，兼职日结，日入三百+</span>
+                <span class="xto">→</span>
+                <span class="vchip block"><span class="g">✕</span>拦截 · 诈骗导流</span>
+              </div>
+              <div class="xbranch">
+                <span class="xcap"><b>配文 B</b>活动现场签到码，扫码领取纪念册</span>
+                <span class="xto">→</span>
+                <span class="vchip allow"><span class="g">✓</span>放行 · 正常</span>
+              </div>
+            </div>
+          </div>
+          <p class="xnote">二维码本身是<b>中性的</b>——是配文的语境决定了它违规与否。纯关键词挡不住变体、纯视觉会一刀切误伤，<b>只有图文联合的多模态判别</b>才读得懂这层潜台词。这也是项目唯一会硬拦的"确定性证据"（已知恶意网址 / 露骨画面）之外、所有判定的核心立意。</p>
+        </div>
+
+        <!-- 级联四步 teaser -->
+        <div class="steps">
+          <div class="step"><span class="sn">1</span><b>缓存</b><small>判过的同图同文，秒出历史结论</small></div>
+          <div class="step"><span class="sn">2</span><b>初筛</b><small>逐帖都跑：抽信号、确定性证据直接硬拦</small></div>
+          <div class="step"><span class="sn">3</span><b>VLM</b><small>只判拿不准的少数帖，图文联合给理由</small></div>
+          <div class="step"><span class="sn">4</span><b>人工</b><small>待人工裁决写回缓存，形成闭环</small></div>
+        </div>
+        <button class="step-link" data-goto="arch">查看完整级联架构 →</button>
+      </div>
+    </section>
+
+    <!-- ── 审核台 ── -->
+    <section class="view" id="review">
+      <div class="console">
+        <div class="card">
+          <p class="eyebrow">帖子 · POST</p>
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="上传图片">
+            <div class="hint" id="dropHint">拖入或点击上传图片<br><span class="muted">jpg / png · 图片必填</span></div>
+            <img id="preview" alt="" hidden>
+          </div>
+          <input type="file" id="file" accept="image/*" hidden>
+          <label class="fld">配文</label>
+          <textarea id="text" placeholder="用户发帖时打的字……"></textarea>
+          <div class="row">
+            <div class="grow">
+              <label class="fld">审核口径 · 提示词</label>
+              <select id="prompt" title="切换审核的宽严与侧重（如严格 / 宽松 / 专盯诈骗）。提示词独立成文件、可运行时切换，是判定质量的核心可调项。"></select>
+            </div>
+            <button class="btn btn-primary" id="run">检测</button>
+          </div>
+          <div class="examples">
+            <label class="fld">对照样例 · 同图不同文</label>
+            <div class="chips" id="examples"><span class="muted small">加载中…</span></div>
+          </div>
+        </div>
+
+        <div class="card verdict" id="verdict">
+          <p class="eyebrow">判定 · VERDICT</p>
+          <div id="vbody">
+            <p class="placeholder">上传一张图、写句配文，看系统读出图文之间的潜台词。<br>
+              判定会沿 哈希匹配 → 初筛 → VLM → 分流 逐级给出，并说明在哪一级、为什么。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 统计 / 性能测试（暂时隐藏，连同 tab 与下方 JS 一并注释）──
+    <section class="view" id="stats">
+      <div class="card">
+        <p class="eyebrow">架构优越性 · 实测</p>
+        <div class="controls">
+          <span class="seg">每类样本数 <input type="number" id="bn" value="5" min="1" max="12" style="width:58px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px"></span>
+          <button class="btn btn-primary" id="brun">运行实测</button>
+        </div>
+        <div id="bout"><p class="placeholder">用真实流水线在合成集上实跑：级联相对全量 VLM 省了多少（AC-5），以及图文联合相对纯文本 / 纯图像的召回增益（AC-6）。数字以本次实测为准；涉及 VLM 的项需先在「模型选择」启动模型。</p></div>
+      </div>
+    </section>
+    -->
+
+    <!-- ── 模型架构 ── -->
+    <section class="view" id="arch">
+      <div class="card arch">
+        <div class="arch-head">
+          <p class="eyebrow" style="margin:0">推理通路 · 图片+配文 → 判定（级联漏斗：每级只处理上一级的残留）</p>
+        </div>
+
+        <div class="flow">
+          <!-- 输入 -->
+          <div class="fstage io">
+            <div class="idx">IN</div>
+            <div class="fbody">
+              <header><h3>输入 <span class="en">Post</span></h3><span class="tag">输入格式：一张图 + 一句配文</span></header>
+              <p class="frole">同一张图，配文不同，判定就该不同 —— 下面是它从输入到判定要走的每一级。</p>
+            </div>
+          </div>
+
+          <!-- 1 哈希匹配 -->
+          <article class="fstage">
+            <div class="idx">1</div>
+            <div class="fbody">
+              <header><h3>哈希匹配 <span class="en">Hash Match</span></h3><span class="tag">命中就直接复用上次结论</span></header>
+              <p class="frole">给图算一个「图像指纹」、给配文算一个「文字指纹」，两者合成一把钥匙。以前判过的同一张图配同样的文，直接复用上次结论、不再往下跑；同一张图换了配文，就不算命中。</p>
+            </div>
+          </article>
+
+          <div class="handoff"><span>↓ 仅<b>哈希未命中</b>的帖，才进入初筛</span></div>
+
+          <!-- 2 初筛：左→右 图像侧 / 文本侧 两路汇总 -->
+          <article class="fstage" id="stagePF">
+            <div class="idx">2</div>
+            <div class="fbody">
+              <header>
+                <h3>初筛 <span class="en">Prefilter</span></h3><span class="tag">逐帖都跑 · 要快</span>
+                <label class="sw" title="消融：开/关 整个初筛层">
+                  <input type="checkbox" data-ablate="prefilter" checked>
+                  <span class="track"></span>初筛 <b class="sw-state on-txt">启用</b>
+                </label>
+              </header>
+
+              <!-- 初筛内部：左→右 图像侧 / 文本侧 两路 -->
+              <div class="pf">
+                <div class="pf-io">IN<small>未命中的帖</small></div>
+                <div class="pf-split"><span>→</span><span>→</span></div>
+
+                <div class="pf-lanes">
+                  <!-- 图像侧：直接看原图，两个互相独立的检测 -->
+                  <div class="lane">
+                    <span class="lane-tag">图像侧</span>
+                    <div class="node">
+                      <b>NSFW 视觉</b>
+                      <small>只看图，识别色情等露骨画面 · 常开</small>
+                    </div>
+                    <div class="node">
+                      <b>二维码解码</b>
+                      <small>找出图里的二维码并解出内容（网址 / 名片 / 纯文字）</small>
+                    </div>
+                  </div>
+                  <!-- 文本侧：OCR → 文字粗筛 → URL 信誉（先后顺序）-->
+                  <div class="lane">
+                    <span class="lane-tag">文本侧</span>
+                    <div class="node">
+                      <b>OCR 图内文字</b>
+                      <small>把图里印着的字识别出来，并入配文</small>
+                    </div>
+                    <span class="arrow">→</span>
+                    <div class="node">
+                      <b>文字粗筛</b>
+                      <small>对「配文 + 图内文字」做关键词规则，并挑出其中的网址</small>
+                    </div>
+                    <span class="arrow">→</span>
+                    <div class="node">
+                      <b>URL 信誉</b>
+                      <small>把（二维码 + 文字里的）网址跟已知恶意名单核对</small>
+                    </div>
+                  </div>
+                </div>
+
+                <span class="arrow split">→</span>
+
+                <div class="gate">
+                  <div class="gate-h">判定门 · 按优先级</div>
+                  <div class="gate-row"><span class="gn">1</span><span>露骨画面 / 命中恶意网址<b class="o block">→ 直接拦截</b></span></div>
+                  <div class="gate-row"><span class="gn">2</span><span>只发现线索（二维码 / 可疑话术 / 陌生网址）<b class="o vlm">→ 进入第三级 VLM</b></span></div>
+                  <div class="gate-row"><span class="gn">3</span><span>什么都没发现<b class="o plain">→ 放行</b></span></div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <div class="handoff"><span>↓ 仅<b>初筛拿不准</b>（判定门第②种：只有线索）的少数帖，才召唤 VLM</span></div>
+
+          <!-- 3 VLM -->
+          <article class="fstage" id="stageVLM">
+            <div class="idx">3</div>
+            <div class="fbody">
+              <header>
+                <h3>VLM 图文联合判别 <span class="en">Joint</span></h3><span class="tag soft">只判前面拿不准的少数帖</span>
+                <label class="sw" title="消融：开/关 第三级 VLM">
+                  <input type="checkbox" data-ablate="vlm" checked>
+                  <span class="track"></span>VLM <b class="sw-state on-txt">启用</b>
+                </label>
+              </header>
+              <p class="frole">把图像、配文（含 OCR 抽出的字）和初筛收集到的线索一起交给 VLM（看得懂图的大模型），让它读懂图文背后的真实意图，给出违规程度：明确 / 较可能 / 模棱两可。</p>
+            </div>
+          </article>
+
+          <div class="handoff"><span>↓ VLM 给出<b>标签 + 违规程度</b>，进入分流</span></div>
+
+          <!-- OUT 分流 + 判定（合并）-->
+          <article class="fstage io">
+            <div class="idx">OUT</div>
+            <div class="fbody">
+              <header><h3>分流 + 判定 <span class="en">Routing → Verdict</span></h3><span class="tag">输出：判定 + 理由 + 走过的步骤</span></header>
+              <p class="frole">按违规程度对应到固定分数（不直接采信模型自报的数字），再分成三档：</p>
+              <div class="verdicts">
+                <span class="vchip allow"><span class="g">✓</span>放行</span>
+                <span class="vchip block"><span class="g">✕</span>拦截</span>
+                <span class="vchip review"><span class="g">◑</span>待人工</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 模型选择 ── -->
+    <section class="view" id="models">
+      <div class="card">
+        <div class="mhead">
+          <p class="eyebrow" style="margin:0">选择并启动一个模型 · 本地 llama.cpp</p>
+          <div class="mutil">
+            <span class="mstatus" id="mstatus">○ 未运行</span>
+            <button class="btn btn-sm" id="minit" title="首次使用先装好 llama.cpp 运行时（缺则下载）">初始化运行时</button>
+            <button class="btn btn-sm" id="mrefresh">刷新</button>
+            <button class="btn btn-sm btn-block" id="mstop">停止</button>
+          </div>
+        </div>
+        <div class="mlist" id="mlist"><span class="muted small">加载中…</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s), api=(p,o)=>fetch(p,o).then(r=>r.json());
+let currentFile=null, lastToken=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+
+/* tabs */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view));
+  if(b.dataset.view==='models') loadModels();
+});
+
+/* 主页 CTA / 链接：跳到对应视图 */
+document.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{
+  const v=b.dataset.goto;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.view===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
+  if(v==='models') loadModels();
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+
+/* status */
+async function refreshStatus(){
+  try{
+    const h=await api('/api/health');
+    const on=/运行中/.test(h.server||'');
+    $('#status').classList.toggle('on',on);
+    $('#statusTxt').textContent=on?'✓ VLM 在线':'○ VLM 未运行';
+  }catch(e){
+    $('#status').classList.remove('on');
+    $('#statusTxt').textContent='✗ 后端未连接';
+  }
+}
+
+/* image picking */
+const drop=$('#drop'), fileInput=$('#file');
+function setFile(f){ currentFile=f; const url=URL.createObjectURL(f);
+  $('#preview').src=url; $('#preview').hidden=false; $('#dropHint').style.display='none'; }
+drop.onclick=()=>fileInput.click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fileInput.click();}};
+fileInput.onchange=e=>e.target.files[0]&&setFile(e.target.files[0]);
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0]; if(f)setFile(f);});
+
+/* prompts + examples */
+async function loadPrompts(){ const p=await api('/api/prompts');
+  $('#prompt').innerHTML=p.variants.map(v=>`<option ${v===p.default?'selected':''}>${v}</option>`).join(''); }
+async function loadExamples(){
+  try{ const ex=await api('/api/examples');
+    if(!ex || !ex.length) throw new Error('样例集为空');
+    $('#examples').innerHTML=ex.map((e,i)=>`<span class="chip" data-i="${i}" title="${e.title}">${e.title.split('：')[0]}</span>`).join('');
+    document.querySelectorAll('.chip').forEach(c=>c.onclick=async()=>{
+      try{
+        const e=ex[+c.dataset.i]; const blob=await fetch(e.image).then(r=>r.blob());
+        setFile(new File([blob], e.title.split('：')[0]+'.png', {type:blob.type})); $('#text').value=e.text;
+        toast('✓ 已加载样例「'+e.title.split('：')[0]+'」—— 点「检测」看判定');
+      }catch(ee){ toast('加载样例失败：'+ee); }
+    });
+  }catch(e){ $('#examples').innerHTML='<span class="muted small">样例生成失败（确认 PIL/qrcode 已装）：'+e+'</span>'; }
+}
+
+/* detect */
+const GLYPH={'放行':'✓','拦截':'✕','待人工':'◑'};
+$('#run').onclick=async()=>{
+  if(!currentFile){toast('⚠ 请先上传图片（图片必填）');return;}
+  const btn=$('#run'); btn.disabled=true; const btnText=btn.textContent; btn.textContent='检测中…';
+  const fd=new FormData(); fd.append('image',currentFile); fd.append('text',$('#text').value||''); fd.append('prompt',$('#prompt').value||'base');
+  try{
+    const d=await fetch('/api/detect',{method:'POST',body:fd}).then(r=>{
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+    if(d.error){toast('✗ '+d.error);return;}
+    renderVerdict(d);
+  }catch(e){toast('✗ 检测失败：'+e.message);}
+  finally{btn.disabled=false; btn.textContent=btnText;}
+};
+function renderVerdict(d){
+  lastToken=d.token;
+  const v=$('#verdict'); v.className='card verdict is-'+d.decision;
+  const trace=(d.trace||[]); const decidedIdx=trace.length-1;
+  const nodes=trace.map((t,i)=>{ const parts=String(t).split('：'); const lab=parts[0]||''; const note=parts.slice(1).join('：')||'';
+    const cls=i===decidedIdx?'decided':'done';
+    const delay=i*110+90; // 逐级揭示；decided 的 pipPop 在节点淡入后触发
+    return `<div class="tnode ${cls}" style="animation-delay:${delay}ms"><span class="pip" style="animation-delay:${delay+120}ms"></span><span class="tlabel">${lab}</span><span class="tnote">${note||t}</span></div>`; }).join('');
+  const canReview=d.decision==='待人工';
+  $('#vbody').innerHTML=`
+    <div class="vhead">
+      <div class="vword"><span class="gl">${GLYPH[d.decision]||'·'}</span>${d.decision}</div>
+      <span class="vbadge">${d.label}</span>
+      <div class="vmeta">score <b>${d.score}</b><br>来源 <b>${d.stage}</b> · ${d.latency_ms}ms</div>
+    </div>
+    <div class="score"><i id="sbar"></i></div>
+    <div class="reason"><span class="q">判定理由 </span>${d.reason}</div>
+    <div class="trace">${nodes}</div>
+    <div class="review-bar">
+      <button class="btn btn-allow" id="rok" ${canReview?'':'disabled'}>通过 ✓</button>
+      <button class="btn btn-block" id="rno" ${canReview?'':'disabled'}>拒绝 ✕</button>
+      <span class="note">${canReview?'人工裁决将写回哈希库，下次同图同文直接复用（闭环）':'仅「待人工」可人工复核'}</span>
+    </div>`;
+  requestAnimationFrame(()=>{ $('#sbar').style.width=(d.score*100)+'%'; });
+  if(canReview){ $('#rok').onclick=()=>review(true); $('#rno').onclick=()=>review(false); }
+  if(!d.server_running && d.stage==='VLM') toast('VLM 未运行，本次为降级结果 — 去「模型选择」启动');
+}
+async function review(ok){
+  if(!lastToken)return;
+  const btn=ok?$('#rok'):$('#rno'); const btnTxt=btn.textContent;
+  btn.disabled=true; btn.textContent='提交中…';
+  try{
+    const r=await api('/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:lastToken,approved:ok})});
+    toast(ok?'✓ 已通过（放行）· 写回哈希库':'✕ 已拒绝（拦截）· 写回哈希库');
+    const v=$('#verdict'); v.className='card verdict is-'+r.decision;
+    const vbody=$('#vbody');
+    vbody.querySelector('.vword').innerHTML=`<span class="gl">${GLYPH[r.decision]}</span>${r.decision}`;
+    vbody.querySelector('.vbadge').textContent=r.label+' · 人工';
+    // 禁用人工复核按钮（已写回，无需再复核）
+    $('#rok').disabled=true; $('#rno').disabled=true;
+    document.querySelector('.review-bar .note').textContent='✓ 已写回闭环缓存，同图同文会直接复用此结论';
+  }catch(e){toast('写回失败：'+e);}
+  finally{btn.disabled=false; btn.textContent=btnTxt;}
+}
+
+/* === 性能测试 stats（暂时停用：对应 tab 与 #stats 视图已注释）===
+$('#brun').onclick=async()=>{
+  const n=Math.min(Math.max(+$('#bn').value,1),12);
+  const btn=$('#brun'); btn.disabled=true; const btnText=btn.textContent; btn.textContent='运行中…';
+  $('#bout').innerHTML='<p class="placeholder">跑级联 vs 全量 VLM、四方召回对比中…（真实模型，样本多时较慢）</p>';
+  try{
+    const r=await api('/api/benchmark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({n:n,mock:false})});
+    if(!r || !r.cost){throw new Error('后端返回数据格式错误');}
+    renderBench(r);
+  }catch(e){
+    $('#bout').innerHTML='<p class="placeholder">✗ 性能测试失败：<b>'+e.message+'</b><br><br>'+
+      '可能原因：① VLM 未启动（需在「模型选择」先启动）② 样本生成失败（需要 PIL/qrcode）<br>'+
+      '可试试用 mock 后端（离线）快速验证架构</p>';
+  }
+  finally{btn.disabled=false; btn.textContent=btnText;}
+};
+const pct=x=>x==null?'—':(x*100).toFixed(0)+'%';
+function renderBench(r){
+  const c=r.cost, g=r.gain, cc=c.cascade, fv=c.full_vlm;
+  $('#bout').innerHTML=`
+    <p class="kicker">AC-5 · 级联省成本</p>
+    <table><thead><tr><th>方案</th><th class="num">进入 VLM</th><th class="num">平均延迟/帖</th><th class="num">总墙钟</th></tr></thead><tbody>
+      <tr class="hl"><td>级联</td><td class="num">${pct(cc.vlm_ratio)}</td><td class="num">${cc.avg_latency_ms} ms</td><td class="num">${c.cascade_wall_s}s</td></tr>
+      <tr><td class="muted">全量跑 VLM</td><td class="num">100%</td><td class="num">${fv.avg_latency_ms} ms</td><td class="num">${c.full_vlm_wall_s}s</td></tr>
+    </tbody></table>
+    <p class="small muted">相对全量 VLM 提速 <b style="color:var(--text)">${c.speedup_x}×</b> · 各级命中 ${JSON.stringify(cc.by_stage)}</p>
+    <p class="kicker">AC-6 · 图文联合增益（违规子集 N=${g.violation_samples}）</p>
+    <table><thead><tr><th>方案</th><th class="num">违规召回</th></tr></thead><tbody>
+      <tr class="hl"><td>图文联合 VLM</td><td class="num">${pct(g.recall_joint_image_text)}</td></tr>
+      <tr><td class="muted">纯文本 LLM（看不到图）</td><td class="num">${pct(g.recall_text_only_llm)}</td></tr>
+      <tr><td class="muted">纯文本关键词</td><td class="num">${pct(g.recall_text_only_keyword)}</td></tr>
+      <tr><td class="muted">纯图像（视觉一刀切）</td><td class="num">${pct(g.recall_image_only)}</td></tr>
+    </tbody></table>
+    <p class="small muted">多模态增益（联合−纯文本LLM）= <b style="color:var(--text)">${pct(g.multimodal_gain_overall)}</b> · ${g.note}</p>`;
+}
+=== 性能测试 stats end === */
+
+/* models */
+async function loadModels(){
+  try{
+    const m=await api('/api/models');
+    $('#mstatus').textContent = m.running ? '● 运行中' : '○ 未运行';
+    $('#mstatus').style.color = m.running ? 'var(--allow)' : 'var(--muted)';
+    const presetCards=(m.presets||[]).map(p=>`<div class="mcard">
+        <div class="mcard-main">
+          <div class="mname">${p.key} <span class="mtag ${p.downloaded?'ok':'no'}">${p.downloaded?'✓ 已下载':'未下载'}</span></div>
+          <div class="mnote">${p.note}</div>
+        </div>
+        <button class="btn ${p.downloaded?'btn-primary':''}" data-preset="${p.key}" ${p.downloaded?'':'disabled'} title="${p.downloaded?'点击启动此模型':'需先下载'}">${p.downloaded?'使用此模型':'未下载'}</button>
+      </div>`);
+    const localCards=(m.local||[]).map(l=>`<div class="mcard">
+        <div class="mcard-main">
+          <div class="mname">${l.label} <span class="mtag">📁 本地</span></div>
+          <div class="mnote">${l.has_mmproj?'✓ 含 mmproj · 可多模态':'✗ 缺 mmproj · 无法多模态'}</div>
+        </div>
+        <button class="btn ${l.has_mmproj?'btn-primary':''}" data-file="${l.label}" ${l.has_mmproj?'':'disabled'} title="${l.has_mmproj?'点击启动此模型':'缺少多模态投影权重'}">${l.has_mmproj?'使用此模型':'缺 mmproj'}</button>
+      </div>`);
+    $('#mlist').innerHTML=[...presetCards,...localCards].join('')
+      || '<span class="muted small">📭 models/ 下没有模型。<br><br>选项：① 点「初始化运行时」后自动下载预设，② 手动把 GGUF + mmproj 放进 models/</span>';
+    document.querySelectorAll('#mlist button[data-preset],#mlist button[data-file]').forEach(b=>b.onclick=async()=>{
+      const t=b.textContent; b.disabled=true; b.textContent='启动中…';
+      try{
+        const body=b.dataset.preset?{preset:b.dataset.preset}:{model_file:b.dataset.file};
+        const r=await api('/api/serve/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        toast('✓ '+(r.message||'模型启动请求已发出')); setTimeout(()=>{refreshStatus();loadModels();},1200);
+      }catch(e){toast('✗ 启动失败：'+e);}
+      finally{b.disabled=false; b.textContent=t;}
+    });
+  }catch(e){toast('✗ 加载模型列表失败：'+e);}
+}
+$('#mstop').onclick=async()=>{try{await api('/api/serve/stop',{method:'POST'});toast('✓ 已停止');}catch(e){toast('✗ '+e);}setTimeout(()=>{refreshStatus();loadModels();},500);};
+$('#mrefresh').onclick=loadModels;
+$('#minit').onclick=async()=>{const btn=$('#minit');const t=btn.textContent;btn.disabled=true;btn.textContent='准备中…';try{const r=await api('/api/serve/init');toast(r.ok?'✓ 运行时就绪':'✗ 失败：'+(r.error||'未知错误'));if(r.ok)setTimeout(loadModels,800);}catch(e){toast('✗ '+e);}finally{btn.disabled=false;btn.textContent=t;}};
+
+/* 模型架构：消融开关（前端视觉 + 后端可选消融） */
+document.querySelectorAll('.sw input[data-ablate]').forEach(sw=>{
+  sw.addEventListener('change',()=>{
+    const on=sw.checked;
+    if(sw.dataset.ablate==='vlm'){ $('#stageVLM').classList.toggle('ablated',!on); }
+    else if(sw.dataset.ablate==='prefilter'){ $('#stagePF').classList.toggle('ablated',!on); }
+    const lab=sw.closest('.sw').querySelector('.sw-state'); if(lab){ lab.textContent=on?'启用':'停用'; lab.classList.toggle('on-txt',on); }
+    // 注：消融开关当前仅为可视化演示。若需真实消融（改变 VLM 调用行为），
+    // 应在 /api/detect 中传递 ablations 参数，由后端按消融规则执行级联。
+  });
+});
+
+// 初始化：加载配置、样例、检测后端连接
+(async()=>{
+  try{
+    await Promise.all([loadPrompts(), loadExamples()]);
+  }catch(e){
+    console.warn('初始化样例/prompt 时出错：',e);
+    toast('⚠ 某些初始化步骤失败，部分功能可能不可用');
+  }
+  refreshStatus();
+  // 定期刷新 VLM 服务状态（每 8 秒一次）
+  setInterval(refreshStatus, 8000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+# Subtextor 默认配置（FR-8 / NFR-3：阈值、后端、模型、prompt 集中管理）。
+# 运行时可用环境变量 SUBTEXTOR_CONFIG 指向另一个文件，或在代码里传 overrides。
+
+pipeline:
+  # 级联顺序；可增删（如临时关掉缓存做 benchmark）。
+  stages: [cache, prefilter, vlm]
+
+# ① 已判缓存层（FR-1）
+cache:
+  enabled: true
+  store_path: .cache/verdicts.sqlite
+  hash_algo: phash          # phash | dhash | ahash
+  hamming_threshold: 5      # 近似命中：汉明距离 ≤ 此值视为同一帖，容忍压缩/缩放/水印
+
+# ② 轻量初筛层（FR-2）：二维码解码 + L0 NSFW + OCR + 关键词 + 通道一信誉
+prefilter:
+  ocr: paddle               # 默认开：抽图内文字补召回（话术印在图里/支付截图诈骗）。
+                            # 需装 paddleocr；未装时自动降级为 null（不崩，仅告警一次）。
+  ocr_lang: ch
+  text_filter: keyword      # 关键词/正则粗筛
+  normal_pass_score: 0.80   # 初筛判"正常·放行"时写入 Result 的 score
+
+# L0 视觉硬拦：NSFW 预训练 → ONNX（FR-14）。默认按 GantMan nsfwjs(MobileNetV2) 配置。
+nsfw:
+  enabled: true
+  model_path: models/nsfw.onnx   # 缺失时 L0 自动跳过（不崩、不硬拦）
+  block_threshold: 0.85          # 违规类概率和 ≥ 此值 → 硬拦
+  input_size: 224
+  layout: nhwc                   # GantMan 是 TF NHWC；torchvision/torch 系 ONNX 用 nchw
+  normalize: false               # GantMan 只 /255，不做 ImageNet 标准化（rescale 仍 /255）
+  output_kind: probs             # GantMan 末层已 softmax；输出 logits 的模型用 softmax2/sigmoid1
+  # 5 类: 0=drawings 1=hentai 2=neutral 3=porn 4=sexy
+  # 硬拦"露骨色情"=hentai+porn 概率和（sexy=性暗示，刻意不硬拦，避免误伤泳装/海滩）
+  nsfw_indices: [1, 3]
+
+# 通道一：URL 信誉（FR-11 / FR-12）
+reputation:
+  backend: local_list            # local_list（默认）| mock | （未来）safe_browsing
+  blocklist: []                  # 本地名单（域名/子串）；内置示意名单见 reputation/local_list.py
+
+# ③ VLM 图文联合精判层（FR-5 / HC-5）
+# 切换部署形态只改这里：llamacpp（本地）/ remote（远程 API）/ mock（离线跑通）。
+vlm:
+  backend: llamacpp                       # llamacpp | remote | mock
+  base_url: http://127.0.0.1:8080/v1      # 本地 llama.cpp server 默认端点
+  api_key: sk-no-key-required             # 本地无需真实 key；远程时填真实 key
+  model: qwen3-vl-8b-instruct             # 标签而已（llama.cpp 不校验）；由网页控制台或 serve_vlm.py 提供
+                                          # Instruct=演示主选(低延迟)；Thinking=可选(reason 更细但更慢)
+  temperature: 0.2
+  retry_temperature: 0.0                  # §4.3 L3：解析失败后降温度重试一次
+  max_tokens: 512
+  timeout: 60
+  prompt: base                            # 默认 prompt 变体（prompts/ 下文件名）
+
+# ④ 三档分流（§4.4 / FR-4 / HC-7）
+routing:
+  # likely 档（score=0.70）：score ≥ block_threshold → 拦截，否则 → 待人工。
+  # 默认 0.70 表示 likely 违规即自动拦截；调高到 >0.70 可让 likely 一律送人工（更保守）。
+  block_threshold: 0.70
+
+# severity → score 固定映射（§4.4，HC-7：不采信模型自报数值）
+severity_map:
+  clear: 0.95
+  likely: 0.70
+  unsure: 0.40

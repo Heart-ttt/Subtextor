@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subtextor"
+version = "1.0.0"
+description = "图文语境违规检测的级联流水线 + 可插拔接口框架"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# 运行核心（`pip install -e .` 即可跑通：级联流水线 / FastAPI 审核台 / 离线 demo / 合成数据 / 二维码解码 / L0 NSFW）。
+# 【硬约束】numpy 锁 <2：opencv 与（可选）paddle 的 C 扩展按 numpy 1.x 编译，升到 2.x 会报 multiarray 导入失败。
+dependencies = [
+    "pyyaml==6.0.1",
+    "pillow==10.2.0",
+    "numpy==1.26.4",
+    "imagehash==4.3.1",
+    "openai==1.38.0",            # OpenAI 兼容协议客户端（VLM 后端）
+    "httpx[socks]==0.26.0",      # openai 底层传输；[socks] 供经 SOCKS 代理访问
+    "pydantic==2.6.4",
+    "fastapi==0.109.2",
+    "uvicorn==0.27.0",
+    "python-multipart==0.0.6",   # FastAPI 文件上传
+    "opencv-python>=4.6,<4.10",  # 二维码解码；范围内与 numpy<2 兼容（OCR 档会收敛到 4.6）
+    "onnxruntime==1.17.3",       # L0 NSFW 推理（AC-8）
+    "qrcode==7.4.2",             # 合成数据生成
+]
+
+[project.optional-dependencies]
+# 中文 OCR（config: prefilter.ocr=paddle）。较重；缺失时流水线自动降级、不崩。
+# 安装：pip install -e ".[ocr]"
+# ABI：须 numpy<2 + opencv 4.6；勿升 paddleocr 3.x（API 破坏，ocr.py 按 2.x 调用）。
+ocr = [
+    "paddlepaddle==2.6.2",
+    "paddleocr==2.7.3",
+    "opencv-python==4.6.0.66",
+]
+# 开发 / 测试：pip install -e ".[dev]"
+dev = ["pytest==7.4.4"]
+
+# src 布局：`pip install -e .` 后 subtextor / apps / ml / eval 均可 import。
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

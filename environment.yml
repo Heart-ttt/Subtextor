@@ -1,0 +1,14 @@
+# conda 环境：只负责锁定 Python 版本、提供干净的 pip 环境。
+# 全部 Python 依赖由 pyproject.toml 声明（单一事实来源），不在这里重复列。
+#
+#   conda env create -f environment.yml
+#   conda activate subtextor
+#   pip install -e .            # 核心；启用 OCR：pip install -e ".[ocr]"；开发：pip install -e ".[dev]"
+#
+# 注：llama.cpp 不是 Python 包，由审核台「模型选择」或 `python -m apps.cli.serve_vlm` 跨平台拉起。
+name: subtextor
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip

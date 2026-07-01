@@ -173,3 +173,7 @@ uvicorn apps.api.main:app --port 7860   # open http://127.0.0.1:7860 in your bro
 ```
 
 In **Model selection**, click **Initialize runtime** and start a local model (e.g. `2b-instruct`); then in **Single-image test** load a contrast sample and click **Detect** to see the cascade trace and the joint verdict. A **Pending** result can be approved / rejected in one click and written back to close the loop.
+
+## License
+
+Released under the [MIT License](./LICENSE).
